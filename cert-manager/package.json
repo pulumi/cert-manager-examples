@@ -1,0 +1,10 @@
+{
+    "name": "cert-manager",
+    "devDependencies": {
+        "typescript": "^3.0.0"
+    },
+    "dependencies": {
+        "@pulumi/kubernetes": "^2.0.0",
+        "@pulumi/pulumi": "^2.0.0"
+    }
+}

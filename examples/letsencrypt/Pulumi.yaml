@@ -1,0 +1,3 @@
+name: automated-certificate
+description: Deploys cert-manager in Kubernetes with support for LetsEncrypt Issuer
+runtime: nodejs

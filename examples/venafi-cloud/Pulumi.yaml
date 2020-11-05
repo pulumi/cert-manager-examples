@@ -1,0 +1,3 @@
+name: venafi-cloud
+description: Deploys cert-manager in Kubernetes with support for Venafi Cloud Issuer
+runtime: nodejs

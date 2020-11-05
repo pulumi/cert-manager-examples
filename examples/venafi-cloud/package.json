@@ -1,0 +1,14 @@
+{
+    "name": "venafi-tpp",
+    "devDependencies": {
+        "typescript": "^3.0.0"
+    },
+    "dependencies": {
+        "@pulumi/eks": "^0.20.0",
+        "@pulumi/kubernetes": "^2.0.0",
+        "@pulumi/kubernetesx": "^0.1.0",
+        "@pulumi/random": "^2.0.0",
+        "@pulumi/pulumi": "^2.0.0",
+        "@pulumi/venafi": "^0.1.0"
+    }
+}
