@@ -1,0 +1,5 @@
+config:
+  automated-certificate:acmeEmail: lbriggs@pulumi.com
+  automated-certificate:acmeServerUrl: https://acme-staging-v02.api.letsencrypt.org/directory
+  automated-certificate:r53HostedZoneName: pulumi-demos.net
+  aws:region: us-west-2

@@ -1,0 +1,6 @@
+config:
+  aws:region: us-west-2
+  venafi-cloud:r53HostedZoneName: pulumi-demos.net
+  venafi-cloud:venafiCloudApiKey:
+    secure: AAABAGLwYIF/7oD7/dW8NVRYgi6VrVfy2WL8c8mRFEwYtxIxrO3wE47GPYgF9SdaTxLfYfg4SBHAJLx1OwnT6IATiHY=
+  venafi-cloud:venafiCloudZone: 10c82360-194d-11eb-a6f6-f92426dc1aad

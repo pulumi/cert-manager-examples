@@ -14,21 +14,11 @@ const venafiCloudZone = config.require("venafiCloudZone");
 const venafiCloudApiUrl = config.get("venafiCloudApiUrl") || "https://api.venafi.cloud/v1";
 const venafiCloudApiKey = config.requireSecret("venafiCloudApiKey");
 
-// =============================================================================
-// Create an EKS cluster with an OIDC provider.
-// =============================================================================
-
-const cluster = new eks.Cluster(`${projectName}`, {
-    createOidcProvider: true,
-});
-
-// Export the cluster's kubeconfig.
-export const kubeconfig = cluster.kubeconfig;
-
-// Check for the cluster OIDC provider to use per-Pod IAM.
-if (!cluster?.core?.oidcProvider) {
-    throw new Error("Invalid cluster OIDC provider URL");
-}
+const env = pulumi.getStack();
+const infra = new pulumi.StackReference(`jaxxstorm/cert-manager-infra/${env}`);
+const provider = new k8s.Provider("k8s", { kubeconfig: infra.getOutput("kubeconfig") });
+const oidcProviderUrl = infra.getOutput("oidcProviderUrl");
+const oidcProviderArn = infra.getOutput("oidcProviderArn");
 
 // =============================================================================
 // Deploy the cert-manager.
@@ -37,12 +27,12 @@ if (!cluster?.core?.oidcProvider) {
 export const namespaceName = "cert-manager";
 const namespace = new k8s.core.v1.Namespace("cert-manager", {
     metadata: {name: namespaceName},
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 const certManager = new certmgr.CertManager("cert-manager", {
     namespaceName,
     helmChartVersion: "v1.0.3",
-    provider: cluster.provider,
+    provider: provider,
 });
 
 const certMgrReady = certManager.chart.resources.apply(m => pulumi.all(m).apply(m => Object.values(m).map(r => pulumi.output(r))));
@@ -71,7 +61,7 @@ const nginx = new k8s.helm.v3.Chart(nginxName,
             },
         },
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );
 
 // Create a LoadBalancer Service for the NGINX Deployment
@@ -84,7 +74,7 @@ const nginxSvc = new k8s.core.v1.Service(nginxName,
             ports: [{name:"http", port: 80, targetPort: "http"},{name:"https", port: 443, targetPort: "https"}],
             selector: labels,
         },
-    },{provider: cluster.provider}
+    },{provider: provider}
 );
 const lbEndpoint = nginxSvc.status.loadBalancer.ingress.apply(ingress => ingress[0].hostname);
 
@@ -102,7 +92,7 @@ const secret = new k8s.core.v1.Secret("venafi-cloud-creds", {
     stringData: {
         "apikey": venafiCloudApiKey,
     }
-}, {provider: cluster.provider, dependsOn: certMgrReady});
+}, {provider: provider, dependsOn: certMgrReady});
 
 // Create a Issuer for cert-manager in the namespace.
 const issuer = new certmgr.crds.certmanager.v1.ClusterIssuer(certMgrName, {
@@ -116,7 +106,7 @@ const issuer = new certmgr.crds.certmanager.v1.ClusterIssuer(certMgrName, {
             },
         },
     },
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 const certificate = new certmgr.crds.certmanager.v1.Certificate(certMgrName, {
     metadata: {namespace: namespaceName},
@@ -126,7 +116,7 @@ const certificate = new certmgr.crds.certmanager.v1.Certificate(certMgrName, {
         dnsNames: certDnsNames,
         issuerRef: {name: certMgrName, kind: issuer.kind},
     },
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 // =============================================================================
 // Deploy the Demo App Service, Ingress, and R53 DNS Record
@@ -168,7 +158,7 @@ const deployment = new k8s.apps.v1.Deployment(appName,
             }
         },
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );
 
 // Create a Service for the kuard Deployment
@@ -177,7 +167,7 @@ const service = new k8s.core.v1.Service(appName,
         metadata: {labels:appLabels, namespace: namespaceName},
         spec: {ports: [{ port: 8080, targetPort: "http" }], selector: appLabels},
     },
-    {provider: cluster.provider}
+    {provider: provider}
 );
 
 // Create the kuard Ingress
@@ -203,5 +193,5 @@ const ingress = new k8s.networking.v1beta1.Ingress(appName,
             ],
         }
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );

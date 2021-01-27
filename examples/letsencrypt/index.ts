@@ -1,5 +1,4 @@
 import * as aws from "@pulumi/aws";
-import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
 import * as certmgr from "../../cert-manager";
@@ -14,21 +13,12 @@ const r53HostedZone = config.require("r53HostedZoneName");
 const appDomain = config.get("r53AppDomain") || "kuard-le";
 const certDnsNames = [`${appDomain}.${r53HostedZone}`, `${appDomain}-svc.${r53HostedZone}`];
 
-// =============================================================================
-// Create an EKS cluster with an OIDC provider.
-// =============================================================================
+const env = pulumi.getStack();
+const infra = new pulumi.StackReference(`jaxxstorm/cert-manager-infra/${env}`);
+const provider = new k8s.Provider("k8s", { kubeconfig: infra.getOutput("kubeconfig") });
+const oidcProviderUrl = infra.getOutput("oidcProviderUrl");
+const oidcProviderArn = infra.getOutput("oidcProviderArn");
 
-const cluster = new eks.Cluster(`${projectName}`, {
-    createOidcProvider: true,
-});
-
-// Export the cluster's kubeconfig.
-export const kubeconfig = cluster.kubeconfig;
-
-// Check for the cluster OIDC provider to use per-Pod IAM.
-if (!cluster?.core?.oidcProvider) {
-    throw new Error("Invalid cluster OIDC provider URL");
-}
 
 // =============================================================================
 // Deploy the cert-manager.
@@ -37,13 +27,13 @@ if (!cluster?.core?.oidcProvider) {
 export const namespaceName = "cert-manager";
 const namespace = new k8s.core.v1.Namespace("cert-manager", {
     metadata: {name: namespaceName},
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 // Create a ServiceAccount in the namespace with AWS IAM permissions to configure DNS in Route53.
 const saIamRole = rbac.CreateServiceAccountIAMRole("cert-manager",
     namespaceName,
-    cluster.core.oidcProvider.arn,
-    cluster.core.oidcProvider.url,
+    oidcProviderArn,
+    oidcProviderUrl,
 );
 
 // Create and deploy the cert-manager.
@@ -51,9 +41,9 @@ const certManager = new certmgr.CertManager("cert-manager", {
     namespaceName,
     iamRoleArn: saIamRole.arn,
     helmChartVersion: "v1.0.3",
-    provider: cluster.provider,
+    provider: provider,
 });
-const certMgrReady = certManager.chart.resources.apply(m => pulumi.all(m).apply(m => Object.values(m).map(r => pulumi.output(r))));
+const certMgrReady = certManager.chart.resources.apply((m: Record<string, unknown>) => pulumi.all(m).apply(m => Object.values(m).map(r => pulumi.output(r))));
 
 const webhookSvc = certMgrReady.apply(c => {
     return certManager.chart.getResource("v1/Service", "cert-manager/cert-manager-webhook")
@@ -79,7 +69,7 @@ const nginx = new k8s.helm.v3.Chart(nginxName,
             },
         },
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );
 
 // Create a LoadBalancer Service for the NGINX Deployment
@@ -92,7 +82,7 @@ const nginxSvc = new k8s.core.v1.Service(nginxName,
             ports: [{name:"http", port: 80, targetPort: "http"},{name:"https", port: 443, targetPort: "https"}],
             selector: labels,
         },
-    },{provider: cluster.provider}
+    },{provider: provider}
 );
 const lbEndpoint = nginxSvc.status.loadBalancer.ingress.apply(ingress => ingress[0].hostname);
 
@@ -128,7 +118,7 @@ const issuer = new certmgr.crds.certmanager.v1.ClusterIssuer(certMgrName, {
             }],
         }
     },
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 const certificate = new certmgr.crds.certmanager.v1.Certificate(certMgrName, {
     metadata: {namespace: namespaceName},
@@ -137,7 +127,7 @@ const certificate = new certmgr.crds.certmanager.v1.Certificate(certMgrName, {
         dnsNames: certDnsNames,
         issuerRef: {name: certMgrName, kind: issuer.kind},
     },
-}, {provider: cluster.provider});
+}, {provider: provider});
 
 // =============================================================================
 // Deploy the Demo App Service, Ingress, and R53 DNS Record
@@ -179,7 +169,7 @@ const deployment = new k8s.apps.v1.Deployment(appName,
             }
         },
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );
 
 // Create a Service for the kuard Deployment
@@ -188,7 +178,7 @@ const service = new k8s.core.v1.Service(appName,
         metadata: {labels:appLabels, namespace: namespaceName},
         spec: {ports: [{ port: 8080, targetPort: "http" }], selector: appLabels},
     },
-    {provider: cluster.provider}
+    {provider: provider}
 );
 
 // Create the kuard Ingress
@@ -214,5 +204,5 @@ const ingress = new k8s.networking.v1beta1.Ingress(appName,
             ],
         }
     },
-    {provider: cluster.provider},
+    {provider: provider},
 );
