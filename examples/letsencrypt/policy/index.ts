@@ -5,6 +5,7 @@ const policies = new PolicyPack("kubernetes", {
     policies: [
         validIssuerTypeUsed("mandatory"),
         validClusterIssuerTypeUsed("mandatory"),
+        // validDnsName("mandatory")
     ],
 });
 
@@ -36,6 +37,25 @@ function validClusterIssuerTypeUsed(enforcementLevel: EnforcementLevel): Resourc
                     "You cannot set a cert-manager ClusterIssuer with a type other than Venafi or ACME"
                 )
             }
+        }),
+    };
+}
+
+function validDnsName(enforcementLevel: EnforcementLevel): ResourceValidationPolicy {
+    return {
+        name: "cert-manager-valid-dns-name",
+        description: "cert-manager certificates should have the correct dns name",
+        enforcementLevel: enforcementLevel,
+        validateResource: validateResourceOfType(certmgr.crds.certmanager.v1.Certificate, (cert, _, reportViolation) => {
+            cert.spec?.dnsNames?.forEach( (name) => {
+                // split the name on the "."
+                let splitDnsName = name.split(".")
+                if ( splitDnsName[1] != "pulumi-demos" && splitDnsName[2] != ".net") {
+                    reportViolation(
+                        "certificates must be issues to *.pulumi-demos.net"
+                    )
+                }
+            })
         }),
     };
 }

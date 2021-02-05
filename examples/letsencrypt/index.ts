@@ -129,6 +129,15 @@ const certificate = new certmgr.crds.certmanager.v1.Certificate(certMgrName, {
     },
 }, {provider: provider});
 
+// const invalidCert = new certmgr.crds.certmanager.v1.Certificate("invalid-cert", {
+//     metadata: {namespace: namespaceName},
+//     spec: {
+//         secretName,
+//         dnsNames: [ "kuard.example.net" ],
+//         issuerRef: {name: certMgrName, kind: issuer.kind},
+//     }
+// })
+
 // =============================================================================
 // Deploy the Demo App Service, Ingress, and R53 DNS Record
 // =============================================================================
@@ -206,3 +215,5 @@ const ingress = new k8s.networking.v1beta1.Ingress(appName,
     },
     {provider: provider},
 );
+
+export const address = certDnsNames

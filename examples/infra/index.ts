@@ -9,6 +9,10 @@ const projectName = pulumi.getProject();
 
 const cluster = new eks.Cluster(`${projectName}`, {
     createOidcProvider: true,
+    tags: {
+        Owner: "lbriggs",
+        owner: "lbriggs"
+    }
 });
 
 // Export the cluster's kubeconfig.
