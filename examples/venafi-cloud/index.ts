@@ -195,3 +195,5 @@ const ingress = new k8s.networking.v1beta1.Ingress(appName,
     },
     {provider: provider},
 );
+
+export const urls = certDnsNames
